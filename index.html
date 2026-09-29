@@ -20,6 +20,7 @@
       <a href="#overview" class="nav-link" data-view="overview"><span data-icon="dashboard"></span>Overview</a>
       <a href="#subscriptions" class="nav-link" data-view="subscriptions"><span data-icon="layers"></span>Subscriptions<span id="nav-count" class="nav-count"></span></a>
       <a href="#renewals" class="nav-link" data-view="renewals"><span data-icon="calendar"></span>Upcoming renewals</a>
+      <a href="#settings" class="nav-link" data-view="settings"><span data-icon="settings"></span>Settings</a>
     </nav>
     <div class="nav-label tools-label">TOOLS</div>
     <button class="nav-link" id="import-button"><span data-icon="upload"></span>Import backup</button>
@@ -50,9 +51,66 @@
         <aside class="insights" aria-label="Subscription insights">
           <section class="panel renewals-panel"><div class="panel-heading"><h2>Coming up next</h2><span class="subtle-icon" data-icon="calendar"></span></div><p class="panel-subtitle">Your next 30 days, at a glance.</p><div id="upcoming-list"></div><div class="upcoming-total"><span>Due in the next 30 days</span><strong id="upcoming-total"></strong></div><a href="#renewals" class="text-link">View all upcoming renewals <span data-icon="arrow-right"></span></a></section>
           <section class="panel breakdown-panel"><div class="panel-heading"><h2>Where it goes</h2><span class="subtle-icon" data-icon="chart"></span></div><p class="panel-subtitle">Monthly equivalent by category.</p><div id="category-breakdown"></div><div class="breakdown-footer"><span class="tiny-dot"></span>Annual plans spread over 12 months</div></section>
-          <div class="sheet-note"><span data-icon="sparkles"></span><div><strong>A fresh start for your spreadsheet.</strong><p>Your original entries are here, including cancellation notes.</p><button class="text-link" id="sheet-info-button">About your imported data <span data-icon="arrow-right"></span></button></div></div>
+          <div class="sheet-note"><span data-icon="sparkles"></span><div><strong>Built for your own list.</strong><p>Try the example entries, then add your subscriptions or import a backup.</p><button class="text-link" id="sheet-info-button">How this app works <span data-icon="arrow-right"></span></button></div></div>
         </aside>
       </div>
+      <section id="settings-section" class="settings-section" hidden>
+        <div class="settings-grid">
+          <div class="panel settings-card">
+            <div class="panel-heading">
+              <div class="section-title">
+                <h2>Categories & colors</h2>
+                <span class="count-badge" id="category-count-badge">5</span>
+              </div>
+            </div>
+            <p class="panel-subtitle">Customize spending categories and their accent colors. Subscription avatars, tags, and charts update immediately.</p>
+            <div class="category-list" id="category-settings-list"></div>
+            <form id="add-category-form" class="add-category-form">
+              <div class="color-picker-wrap" title="Choose color">
+                <input type="color" id="new-cat-color" value="#176b50" aria-label="Category color">
+                <span class="color-swatch-preview" id="new-cat-swatch" style="background:#176b50"></span>
+              </div>
+              <input type="text" id="new-cat-name" placeholder="New category name…" maxlength="50" required autocomplete="off" aria-label="New category name">
+              <button type="submit" class="button secondary"><span data-icon="plus"></span>Add category</button>
+            </form>
+          </div>
+
+          <div class="panel settings-card">
+            <div class="panel-heading">
+              <div class="section-title">
+                <h2>Data & workspace</h2>
+              </div>
+            </div>
+            <p class="panel-subtitle">Manage your stored data, reset to a clean slate, or backup your workspace.</p>
+            <div class="settings-action-list">
+              <div class="settings-action-item">
+                <div>
+                  <strong>Clear all data and start from scratch</strong>
+                  <p>Delete all subscriptions to begin with a completely blank workspace. Your custom categories and colors remain intact.</p>
+                </div>
+                <button type="button" class="button danger-outline" id="clear-all-data-button"><span data-icon="trash"></span>Clear all data</button>
+              </div>
+              <div class="settings-action-item">
+                <div>
+                  <strong>Reload starter examples</strong>
+                  <p>Restore the default starter subscriptions (Figma, Netflix, Proton Mail) from the starter file.</p>
+                </div>
+                <button type="button" class="button secondary" id="reload-starter-button"><span data-icon="repeat"></span>Load starter data</button>
+              </div>
+              <div class="settings-action-item">
+                <div>
+                  <strong>Backup & Restore</strong>
+                  <p>Export your subscriptions and custom categories to a JSON file, or restore from an existing backup.</p>
+                </div>
+                <div class="button-group">
+                  <button type="button" class="button secondary" id="settings-export-button"><span data-icon="download"></span>Export</button>
+                  <button type="button" class="button secondary" id="settings-import-button"><span data-icon="upload"></span>Import</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
       <footer class="page-footer"><span>Less to keep in your head.</span><span>Made for your everyday peace of mind <span class="footer-spark">✳</span></span></footer>
     </main>
   </div>
@@ -76,7 +134,7 @@
     </form>
   </dialog>
 
-  <dialog id="info-dialog" aria-labelledby="info-title"><div class="dialog-header"><h2 id="info-title">From spreadsheet to clarity</h2><button class="icon-button" data-close="info-dialog" aria-label="Close dialog"><span data-icon="x"></span></button></div><div class="info-body"><p>Your 29 subscriptions were transcribed from <a href="sheet.jpeg" target="_blank" rel="noopener">your original screenshot ↗</a>. You can edit any row to review its details.</p><h3>How your totals work</h3><p>The sheet’s <strong>active</strong> column determines which subscriptions count toward spending. A cancellation request is tracked separately; an active plan stays in your totals until you mark it inactive.</p><p>The active monthly plans total <strong>€124.95</strong>. Active annual plans total <strong>€445.99</strong>, including eDreams (€69.99), which appears active but was left out of the sheet’s €376.00 annual total.</p><p>OpenCode Zen has no visible price, so its amount is left unknown. Ambiguous dates are left blank and preserved in notes. Please review the imported details.</p><h3>Renewals & cancellations</h3><p>Renewal dates roll forward using the recorded billing date. Dates on or after a known cancellation end date are excluded from upcoming payments. “Cancelling” includes both planned and requested cancellations on active subscriptions.</p><h3>Your data, on this device</h3><p>Changes are stored in this browser’s local storage. Export a JSON backup before clearing browser data or moving to another device. Importing a backup replaces the current list after confirmation.</p></div><div class="dialog-footer"><button class="button primary" data-close="info-dialog">Got it</button></div></dialog>
+  <dialog id="info-dialog" aria-labelledby="info-title"><div class="dialog-header"><h2 id="info-title">A little more clarity</h2><button class="icon-button" data-close="info-dialog" aria-label="Close dialog"><span data-icon="x"></span></button></div><div class="info-body"><p>You are looking at three example subscriptions, so you can explore the dashboard before entering your own. Edit, delete, or import a backup to replace them.</p><h3>How your totals work</h3><p>The <strong>Active subscription</strong> checkbox decides which entries count toward spending. Cancellation is tracked separately, so an active plan stays in your totals until you clear the checkbox.</p><p>Leave the amount blank when you do not know a price. It is then shown as unknown, rather than counted as €0.</p><h3>Renewals & cancellations</h3><p>Renewal dates roll forward from the recorded billing date, keeping the same day of the month in shorter months. Dates on or after an entered end date are excluded from upcoming payments. “Cancelling” covers both planned and requested cancellations on active subscriptions.</p><h3>Your data, on this device</h3><p>Changes are stored in this browser’s local storage. Export a JSON backup before clearing browser data or moving to another device. Importing a backup replaces the current list after confirmation.</p></div><div class="dialog-footer"><button class="button primary" data-close="info-dialog">Got it</button></div></dialog>
 
   <dialog id="confirm-dialog" aria-labelledby="confirm-title"><div class="dialog-header"><h2 id="confirm-title">Are you sure?</h2><button class="icon-button" data-close="confirm-dialog" aria-label="Close dialog"><span data-icon="x"></span></button></div><div class="info-body"><p id="confirm-message"></p></div><div class="dialog-footer"><button class="button secondary" data-close="confirm-dialog">Cancel</button><button class="button primary" id="confirm-action">Confirm</button></div></dialog>
   <input id="import-file" type="file" accept="application/json,.json" hidden>

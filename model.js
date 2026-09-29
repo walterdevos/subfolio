@@ -1,6 +1,10 @@
-import { CATEGORIES } from './data.js';
+import { DEFAULT_CATEGORIES as INITIAL_DEFAULT_CATEGORIES } from './data.js';
+
+export const DEFAULT_CATEGORIES = INITIAL_DEFAULT_CATEGORIES;
+export const CATEGORIES = DEFAULT_CATEGORIES.map(c => c.name);
 
 export const STORAGE_KEY = 'subfolio.subscriptions.v1';
+export const CATEGORIES_KEY = 'subfolio.categories.v1';
 export const money = value => new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(value);
 
 export function todayISO() {
@@ -73,8 +77,42 @@ export function upcoming(subscriptions, today = todayISO(), horizon = Infinity) 
 const textLimits = { name: 100, id: 100, last4: 4, account: 200, url: 2000, userId: 200, email: 254, notes: 5000, createdAt: 40 };
 const paymentMethods = ['', 'PayPal', 'Visa', 'Mastercard', 'Bank transfer', 'Other', 'Unknown'];
 
-export function validateSubscriptions(input) {
+export function validateCategories(input) {
+  if (!Array.isArray(input) || input.length === 0 || input.length > 100) {
+    throw new Error('Workspace must have between 1 and 100 categories.');
+  }
+  const names = new Set();
+  return input.map((cat, index) => {
+    if (!cat || typeof cat !== 'object' || Array.isArray(cat)) {
+      throw new Error(`Category ${index + 1} is invalid.`);
+    }
+    const name = String(cat.name ?? '').trim();
+    if (!name || name.length > 50) {
+      throw new Error(`Category ${index + 1} must have a name (1–50 characters).`);
+    }
+    const lower = name.toLowerCase();
+    if (names.has(lower)) {
+      throw new Error(`Duplicate category name "${name}".`);
+    }
+    names.add(lower);
+    let color = String(cat.color ?? '').trim();
+    if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color)) {
+      throw new Error(`Category "${name}" has an invalid hex color.`);
+    }
+    if (color.length === 4) {
+      color = `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
+    }
+    return {
+      id: cat.id ? String(cat.id).slice(0, 50) : `cat-${Date.now()}-${index}`,
+      name,
+      color: color.toLowerCase()
+    };
+  });
+}
+
+export function validateSubscriptions(input, allowedCategories = CATEGORIES) {
   if (!Array.isArray(input) || input.length > 5000) throw new Error('The backup must contain a list of up to 5,000 subscriptions.');
+  const validCategoryNames = allowedCategories.map(c => typeof c === 'string' ? c : c.name);
   const ids = new Set();
   return input.map((item, index) => {
     const fail = message => { throw new Error(`Subscription ${index + 1}: ${message}`); };
@@ -94,7 +132,7 @@ export function validateSubscriptions(input) {
     if (!['monthly', 'yearly'].includes(item.interval)) fail('billing interval must be monthly or yearly.');
     if (typeof item.active !== 'boolean') fail('active must be true or false.');
     if (!['none', 'planned', 'requested'].includes(item.cancellation)) fail('invalid cancellation status.');
-    if (!CATEGORIES.includes(item.category)) fail('invalid category.');
+    if (!validCategoryNames.includes(item.category)) fail(`invalid category "${item.category}".`);
     if (!paymentMethods.includes(item.paymentMethod)) fail('invalid payment method.');
     for (const field of ['interval', 'active', 'cancellation', 'category', 'paymentMethod']) result[field] = item[field];
     for (const field of ['nextPayment', 'billingStart', 'cancelledAt', 'endsAt']) {
@@ -111,13 +149,44 @@ export function validateSubscriptions(input) {
   });
 }
 
-export function parseBackup(text) {
+export function parseBackup(text, fallbackCategories = DEFAULT_CATEGORIES) {
   let backup;
   try { backup = JSON.parse(text); } catch { throw new Error('This file is not valid JSON. Choose a Subfolio backup.'); }
   if (!backup || backup.version !== 1 || backup.currency !== 'EUR') throw new Error('Choose a version 1 Subfolio backup in EUR.');
-  return validateSubscriptions(backup.subscriptions);
+  const categories = Array.isArray(backup.categories) ? validateCategories(backup.categories) : validateCategories(fallbackCategories);
+  const subscriptions = validateSubscriptions(backup.subscriptions, categories);
+  return { subscriptions, categories };
 }
 
-export function createBackup(subscriptions) {
-  return JSON.stringify({ app: 'Subfolio', version: 1, currency: 'EUR', exportedAt: new Date().toISOString(), subscriptions }, null, 2);
+export function createBackup(subscriptions, categories = DEFAULT_CATEGORIES) {
+  return JSON.stringify({
+    app: 'Subfolio',
+    version: 1,
+    currency: 'EUR',
+    exportedAt: new Date().toISOString(),
+    categories: validateCategories(categories),
+    subscriptions
+  }, null, 2);
+}
+
+export function hexToRgb(hex) {
+  const clean = String(hex ?? '').replace('#', '');
+  const r = parseInt(clean.length === 3 ? clean[0] + clean[0] : clean.substring(0, 2), 16) || 0;
+  const g = parseInt(clean.length === 3 ? clean[1] + clean[1] : clean.substring(2, 4), 16) || 0;
+  const b = parseInt(clean.length === 3 ? clean[2] + clean[2] : clean.substring(4, 6), 16) || 0;
+  return { r, g, b };
+}
+
+export function hexToRgba(hex, alpha = 0.14) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+export function getInitials(name) {
+  if (!name) return '??';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2 && parts[0] && parts[1]) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.trim().slice(0, 2).toUpperCase();
 }

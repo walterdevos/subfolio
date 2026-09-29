@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A local-first subscription manager, transcribed from sheet.jpeg.",
+  "description": "A local-first subscription manager with example data.",
   "scripts": {
     "start": "python3 -m http.server 8080 --bind 127.0.0.1",
     "test": "node --test tests/model.test.js"

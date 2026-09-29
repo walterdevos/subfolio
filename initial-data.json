@@ -1,0 +1,98 @@
+{
+  "app": "Subfolio",
+  "version": 1,
+  "currency": "EUR",
+  "exportedAt": "2026-09-29T00:00:00.000Z",
+  "categories": [
+    {
+      "id": "cat-ai",
+      "name": "AI & productivity",
+      "color": "#4e8969"
+    },
+    {
+      "id": "cat-entertainment",
+      "name": "Entertainment",
+      "color": "#92af72"
+    },
+    {
+      "id": "cat-cloud",
+      "name": "Cloud & hosting",
+      "color": "#8faab7"
+    },
+    {
+      "id": "cat-software",
+      "name": "Software & tools",
+      "color": "#c6ae7c"
+    },
+    {
+      "id": "cat-travel",
+      "name": "Travel & lifestyle",
+      "color": "#af9ac0"
+    }
+  ],
+  "subscriptions": [
+    {
+      "id": "example-1",
+      "name": "Figma",
+      "amount": 15,
+      "interval": "monthly",
+      "active": true,
+      "category": "Software & tools",
+      "paymentMethod": "Visa",
+      "last4": "4242",
+      "nextPayment": "2026-10-06",
+      "cancellation": "none",
+      "billingStart": "2024-10-06",
+      "cancelledAt": "",
+      "endsAt": "",
+      "account": "",
+      "url": "",
+      "userId": "",
+      "email": "",
+      "notes": "",
+      "createdAt": "2026-09-29T00:00:00.000Z"
+    },
+    {
+      "id": "example-2",
+      "name": "Netflix",
+      "amount": 17.99,
+      "interval": "monthly",
+      "active": true,
+      "category": "Entertainment",
+      "paymentMethod": "PayPal",
+      "last4": "",
+      "nextPayment": "2026-10-14",
+      "cancellation": "none",
+      "billingStart": "2025-10-14",
+      "cancelledAt": "",
+      "endsAt": "",
+      "account": "",
+      "url": "",
+      "userId": "",
+      "email": "",
+      "notes": "",
+      "createdAt": "2026-09-29T00:00:00.000Z"
+    },
+    {
+      "id": "example-3",
+      "name": "Proton Mail",
+      "amount": 89.99,
+      "interval": "yearly",
+      "active": true,
+      "category": "Cloud & hosting",
+      "paymentMethod": "Mastercard",
+      "last4": "8821",
+      "nextPayment": "2027-02-20",
+      "cancellation": "planned",
+      "billingStart": "2026-02-20",
+      "cancelledAt": "",
+      "endsAt": "",
+      "account": "",
+      "url": "",
+      "userId": "",
+      "email": "",
+      "notes": "Cancel when the current term ends.",
+      "createdAt": "2026-09-29T00:00:00.000Z"
+    }
+  ]
+}

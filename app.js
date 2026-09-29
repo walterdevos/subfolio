@@ -1,16 +1,36 @@
-import { CATEGORIES, initialSubscriptions } from './data.js';
-import { STORAGE_KEY, money, todayISO, nextRenewal, daysUntil, statusOf, monthlyEquivalent, summarize, upcoming, validateSubscriptions, parseBackup, createBackup } from './model.js';
+import { DEFAULT_CATEGORIES } from './data.js';
+import {
+  STORAGE_KEY,
+  CATEGORIES_KEY,
+  money,
+  todayISO,
+  nextRenewal,
+  daysUntil,
+  statusOf,
+  monthlyEquivalent,
+  summarize,
+  upcoming,
+  validateSubscriptions,
+  validateCategories,
+  parseBackup,
+  createBackup,
+  hexToRgb,
+  getInitials,
+} from './model.js';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+
 const paths = {
   dashboard: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   layers: '<path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/>',
   calendar: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 11h18m-14 4h2m3 0h2"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/>',
   upload: '<path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/>',
   download: '<path d="M12 3v13m-5-5 5 5 5-5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>', x: '<path d="m6 6 12 12M6 18 18 6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  x: '<path d="m6 6 12 12M6 18 18 6"/>',
   search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/>',
   filter: '<path d="M4 7h16M7 12h10m-7 5h4"/>',
   sort: '<path d="M8 4v16m-4-4 4 4 4-4m4-12v16m-4-12 4-4 4 4"/>',
@@ -27,64 +47,61 @@ const paths = {
   repeat: '<path d="m17 2 4 4-4 4M3 11V8a2 2 0 0 1 2-2h16M7 22l-4-4 4-4m14-1v3a2 2 0 0 1-2 2H3"/>',
   edit: '<path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-4-4L5 15l-1 5Z"/>',
 };
-function icon(name) { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.layers}</svg>`; }
-$$('[data-icon]').forEach(element => { element.innerHTML = icon(element.dataset.icon); });
 
-const categoryColors = { 'AI & productivity': '#4e8969', 'Entertainment': '#92af72', 'Cloud & hosting': '#8faab7', 'Software & tools': '#c6ae7c', 'Travel & lifestyle': '#af9ac0' };
-const brands = {
-  Spotify: ['#e9f8e9', '#368246', '≋'], AWS: ['#fff2e3', '#b9893b', 'aws'], Hetzner: ['#fcecef', '#c04b63', 'H'],
-  Gemini: ['#eef0ff', '#7479be', '✦'], OpenAI: ['#e9f1ed', '#517767', '◎'], 'OpenAI Businesses': ['#e9f1ed', '#517767', '◎'],
-  Base: ['#ebefff', '#748ecf', 'b'], Fabhouse: ['#faedf2', '#b67d96', 'f'], TradingView: ['#edf1fa', '#7791bb', 'TV'],
-  Easynews: ['#eaf4f5', '#72a4ad', 'e'], Loopcloud: ['#f1edfb', '#9782b7', '∞'], ACE: ['#f5eee6', '#a28c74', 'A'],
-  'Microsoft 365 fons': ['#eff2f7', '#758cac', '⊞'], IDrive: ['#eaf2fa', '#6d92b7', 'iD'], eDreams: ['#edf6fa', '#6796b4', 'eD'],
-};
-function avatar(subscription) {
-  const [background, color, letters] = brands[subscription.name] || ['#f1f3ef', '#8a9888', subscription.name.slice(0, 2)];
-  return `<span class="service-avatar" style="background:${background};color:${color}" aria-hidden="true">${escapeHTML(letters)}</span>`;
+function icon(name) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.layers}</svg>`;
 }
+
+function refreshIcons() {
+  $$('[data-icon]').forEach(element => {
+    element.innerHTML = icon(element.dataset.icon);
+  });
+}
+refreshIcons();
+
+let categories = [...DEFAULT_CATEGORIES];
+let subscriptions = [];
+let recoveryData = null;
+let storageAvailable = true;
+let storageBlocked = false;
+
+const state = { view: 'overview', status: 'all', query: '', category: 'all', sort: 'name', page: 1 };
+const PAGE_SIZE = 8;
+let toastTimer;
+
+function categoryColor(categoryName) {
+  const cat = categories.find(c => c.name === categoryName);
+  return cat ? cat.color : '#6c7a72';
+}
+
+function avatar(subscription) {
+  const color = categoryColor(subscription.category);
+  const { r, g, b } = hexToRgb(color);
+  const bg = `rgba(${r}, ${g}, ${b}, 0.14)`;
+  const border = `rgba(${r}, ${g}, ${b}, 0.35)`;
+  const initials = getInitials(subscription.name);
+  return `<span class="service-avatar" style="background:${bg};color:${color};border-color:${border}" aria-hidden="true">${escapeHTML(initials)}</span>`;
+}
+
 function dateLabel(value, options = { day: 'numeric', month: 'short' }) {
   return value ? new Intl.DateTimeFormat('en-GB', { ...options, timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)) : 'No date set';
 }
+
 function relativeDate(value) {
   const days = daysUntil(value);
   return days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days} days`;
 }
 
-let subscriptions;
-let recoveryData = null;
-let storageAvailable = true;
-let storageBlocked = false;
-let needsInitialSave = false;
-const state = { view: 'overview', status: 'all', query: '', category: 'all', sort: 'name', page: 1 };
-const PAGE_SIZE = 8;
-let toastTimer;
-
 function storageWarning(message) {
   $('#storage-warning').textContent = message;
   $('#storage-warning').hidden = !message;
-}
-try {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved === null) { subscriptions = initialSubscriptions(); needsInitialSave = true; }
-  else {
-    try { subscriptions = parseBackup(saved); }
-    catch {
-      recoveryData = saved;
-      storageBlocked = true;
-      subscriptions = [];
-      storageWarning('Your saved data could not be read. It has been preserved. Use Export to download it for recovery, then import a valid backup to continue.');
-    }
-  }
-} catch {
-  subscriptions = initialSubscriptions();
-  storageAvailable = false;
-  storageWarning('Browser storage is unavailable. Changes will last only for this session. Export a backup to keep them.');
 }
 
 function persist() {
   if (storageBlocked) return false;
   try {
-    localStorage.setItem(STORAGE_KEY, createBackup(subscriptions));
+    localStorage.setItem(STORAGE_KEY, createBackup(subscriptions, categories));
+    localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
     storageAvailable = true;
     storageWarning('');
     return true;
@@ -94,7 +111,6 @@ function persist() {
     return false;
   }
 }
-if (needsInitialSave && storageAvailable && !storageBlocked) persist();
 
 function toast(message, action) {
   clearTimeout(toastTimer);
@@ -108,6 +124,23 @@ function toast(message, action) {
   }
   element.hidden = false;
   toastTimer = setTimeout(() => { element.hidden = true; }, action ? 12000 : 6000);
+}
+
+function updateCategoryDropdowns() {
+  const currentFilter = state.category;
+  const filterOptions = ['<option value="all">All categories</option>']
+    .concat(categories.map(c => `<option value="${escapeHTML(c.name)}">${escapeHTML(c.name)}</option>`))
+    .join('');
+  $('#category-filter').innerHTML = filterOptions;
+  if (categories.some(c => c.name === currentFilter)) {
+    $('#category-filter').value = currentFilter;
+  } else {
+    state.category = 'all';
+    $('#category-filter').value = 'all';
+  }
+
+  const formOptions = categories.map(c => `<option value="${escapeHTML(c.name)}">${escapeHTML(c.name)}</option>`).join('');
+  $('#form-category').innerHTML = formOptions;
 }
 
 function renderStats() {
@@ -155,7 +188,8 @@ function renderRows() {
     const dateSub = date ? relativeDate(date) : s.active && s.endsAt ? 'No further payment' : s.active ? 'Add a billing date' : s.cancellation === 'requested' ? 'Cancelled' : 'Not billing';
     const payment = s.paymentMethod || 'Not set';
     const paymentIcon = s.paymentMethod === 'PayPal' ? '<span class="payment-symbol paypal">P</span>' : s.paymentMethod === 'Visa' ? '<span class="payment-symbol">VISA</span>' : s.paymentMethod === 'Mastercard' ? '<span class="payment-symbol mastercard">●●</span>' : '';
-    return `<tr><td><div class="service-cell">${avatar(s)}<div><button class="service-name" data-edit="${escapeHTML(s.id)}" title="Edit ${escapeHTML(s.name)}">${escapeHTML(s.name)}</button><span class="service-category">${escapeHTML(s.category)}</span></div></div></td><td><span class="amount">${s.amount === null ? 'Unknown' : money(s.amount)}</span><span class="cell-subtext">/ ${s.interval === 'monthly' ? 'month' : 'year'}</span></td><td><span class="renewal-date">${dateMain}</span><span class="cell-subtext${date && daysUntil(date) <= 3 ? ' renewal-near' : ''}">${dateSub}</span></td><td><span class="payment-cell">${paymentIcon}${escapeHTML(payment)}</span>${s.last4 ? `<span class="cell-subtext">•••• ${escapeHTML(s.last4)}</span>` : ''}</td><td><span class="status ${status}">${statusLabel}</span></td><td><button class="icon-button row-action" data-edit="${escapeHTML(s.id)}" aria-label="Edit ${escapeHTML(s.name)}">${icon('edit')}</button></td></tr>`;
+    const color = categoryColor(s.category);
+    return `<tr><td><div class="service-cell">${avatar(s)}<div><button class="service-name" data-edit="${escapeHTML(s.id)}" title="Edit ${escapeHTML(s.name)}">${escapeHTML(s.name)}</button><span class="service-category" style="color:${color}">${escapeHTML(s.category)}</span></div></div></td><td><span class="amount">${s.amount === null ? 'Unknown' : money(s.amount)}</span><span class="cell-subtext">/ ${s.interval === 'monthly' ? 'month' : 'year'}</span></td><td><span class="renewal-date">${dateMain}</span><span class="cell-subtext${date && daysUntil(date) <= 3 ? ' renewal-near' : ''}">${dateSub}</span></td><td><span class="payment-cell">${paymentIcon}${escapeHTML(payment)}</span>${s.last4 ? `<span class="cell-subtext">•••• ${escapeHTML(s.last4)}</span>` : ''}</td><td><span class="status ${status}">${statusLabel}</span></td><td><button class="icon-button row-action" data-edit="${escapeHTML(s.id)}" aria-label="Edit ${escapeHTML(s.name)}">${icon('edit')}</button></td></tr>`;
   }).join('');
   $('#empty-state').hidden = visible.length > 0;
   $('#table-summary').textContent = visible.length ? `Showing ${start + 1}–${Math.min(start + PAGE_SIZE, visible.length)} of ${visible.length}` : '0 subscriptions';
@@ -171,16 +205,45 @@ function renderInsights() {
   $('#upcoming-list').innerHTML = renewals.length ? renewals.slice(0, 5).map(({ subscription: s, date }) => `<button class="upcoming-item" data-edit="${escapeHTML(s.id)}" aria-label="Edit ${escapeHTML(s.name)}, renewal ${dateLabel(date)}">${avatar(s)}<span class="upcoming-detail"><strong>${escapeHTML(s.name)}</strong><small>${dateLabel(date)} · ${s.interval === 'monthly' ? 'Monthly' : 'Yearly'}</small></span><span class="upcoming-amount"><strong>${s.amount === null ? 'Unknown' : money(s.amount)}</strong><small class="${daysUntil(date) <= 3 ? 'soon' : ''}">${relativeDate(date)}</small></span></button>`).join('') : '<p class="no-upcoming">All clear for now.<br>No payments due in the next 30 days.</p>';
   const total = renewals.reduce((sum, { subscription }) => sum + Math.round((subscription.amount ?? 0) * 100), 0) / 100;
   $('#upcoming-total').textContent = money(total) + (renewals.some(r => r.subscription.amount === null) ? ' + unknown' : '');
-  const categories = CATEGORIES.map(category => ({ category, total: subscriptions.filter(s => s.active && s.category === category).reduce((sum, s) => sum + monthlyEquivalent(s), 0) })).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
-  const sum = categories.reduce((total, category) => total + category.total, 0);
-  $('#category-breakdown').innerHTML = categories.length ? categories.map(({ category, total }) => `<div class="category-row"><div class="category-row-top"><span><i class="tiny-dot" style="background:${categoryColors[category]}"></i>${escapeHTML(category)}</span><strong>${money(total)}</strong></div><div class="category-track" role="img" aria-label="${escapeHTML(category)}: ${money(total)} per month, ${Math.round(total / sum * 100)} percent"><div class="category-fill" style="width:${total / sum * 100}%;background:${categoryColors[category]}"></div></div></div>`).join('') : '<p class="no-upcoming">Add an active subscription to see your spending breakdown.</p>';
+  const categoryTotals = categories.map(cat => ({
+    category: cat.name,
+    color: cat.color,
+    total: subscriptions.filter(s => s.active && s.category === cat.name).reduce((sum, s) => sum + monthlyEquivalent(s), 0)
+  })).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
+  const sum = categoryTotals.reduce((total, c) => total + c.total, 0);
+  $('#category-breakdown').innerHTML = categoryTotals.length ? categoryTotals.map(({ category, color, total }) => `<div class="category-row"><div class="category-row-top"><span><i class="tiny-dot" style="background:${color}"></i>${escapeHTML(category)}</span><strong>${money(total)}</strong></div><div class="category-track" role="img" aria-label="${escapeHTML(category)}: ${money(total)} per month, ${Math.round(total / sum * 100)} percent"><div class="category-fill" style="width:${total / sum * 100}%;background:${color}"></div></div></div>`).join('') : '<p class="no-upcoming">Add an active subscription to see your spending breakdown.</p>';
 }
 
-function render() { renderStats(); renderRows(); renderInsights(); }
+function renderSettings() {
+  $('#category-count-badge').textContent = categories.length;
+  $('#category-settings-list').innerHTML = categories.map(cat => {
+    const count = subscriptions.filter(s => s.category === cat.name).length;
+    return `
+      <div class="category-item-row" data-cat-id="${escapeHTML(cat.id)}">
+        <label class="color-picker-wrap" title="Change color for ${escapeHTML(cat.name)}">
+          <input type="color" class="category-color-picker" value="${cat.color}" data-cat-id="${escapeHTML(cat.id)}" aria-label="Color for ${escapeHTML(cat.name)}">
+          <span class="color-swatch-preview" style="background:${cat.color}"></span>
+        </label>
+        <input type="text" class="category-name-edit" value="${escapeHTML(cat.name)}" data-cat-id="${escapeHTML(cat.id)}" maxlength="50" aria-label="Category name">
+        <span class="count-badge">${count} sub${count === 1 ? '' : 's'}</span>
+        <button type="button" class="icon-button danger-quiet delete-category-btn" data-cat-id="${escapeHTML(cat.id)}" title="Delete category" aria-label="Delete ${escapeHTML(cat.name)} category">
+          ${icon('trash')}
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+function render() {
+  renderStats();
+  renderRows();
+  renderInsights();
+  renderSettings();
+}
 
 function switchView() {
   const view = location.hash.slice(1);
-  state.view = ['overview', 'subscriptions', 'renewals'].includes(view) ? view : 'overview';
+  state.view = ['overview', 'subscriptions', 'renewals', 'settings'].includes(view) ? view : 'overview';
   state.status = 'all';
   state.page = 1;
   state.sort = state.view === 'renewals' ? 'renewal' : 'name';
@@ -189,16 +252,31 @@ function switchView() {
   $('#search').value = '';
   $('#category-filter').value = 'all';
   $('#sort').value = state.sort;
-  document.body.classList.remove('overview-view', 'subscriptions-view', 'renewals-view');
+  document.body.classList.remove('overview-view', 'subscriptions-view', 'renewals-view', 'settings-view');
   document.body.classList.add(`${state.view}-view`);
-  $$('[data-view]').forEach(link => { const active = link.dataset.view === state.view; link.classList.toggle('active', active); if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current'); });
-  const titles = { overview: ['Your subscriptions, in order', 'A clear view of what you pay for. No spreadsheet required.', 'Your subscriptions', 'Overview'], subscriptions: ['A place for every subscription', 'Keep the useful ones. Keep an eye on the rest.', 'All subscriptions', 'Subscriptions'], renewals: ['Know what’s coming next', 'Next scheduled payments for your active subscriptions, in date order.', 'Upcoming renewals', 'Upcoming renewals'] };
+
+  $$('[data-view]').forEach(link => {
+    const active = link.dataset.view === state.view;
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  });
+
+  const titles = {
+    overview: ['Your subscriptions, in order', 'A clear view of what you pay for. No spreadsheet required.', 'Your subscriptions', 'Overview'],
+    subscriptions: ['A place for every subscription', 'Keep the useful ones. Keep an eye on the rest.', 'All subscriptions', 'Subscriptions'],
+    renewals: ['Know what’s coming next', 'Next scheduled payments for your active subscriptions, in date order.', 'Upcoming renewals', 'Upcoming renewals'],
+    settings: ['Settings', 'Customize categories, accent colors, and your stored data.', 'Settings', 'Settings']
+  };
   const [title, description, listTitle, breadcrumb] = titles[state.view];
   $('#page-title').innerHTML = `${title}<span>.</span>`;
   $('#page-description').textContent = description;
   $('#list-title').textContent = listTitle;
   $('#breadcrumb-current').textContent = breadcrumb;
   document.title = `${breadcrumb} — Subfolio`;
+
+  $('#settings-section').hidden = state.view !== 'settings';
+
   render();
 }
 
@@ -210,7 +288,7 @@ function openEditor(id) {
   $('.additional-fields').open = false;
   const subscription = id ? subscriptions.find(s => s.id === id) : null;
   if (id && !subscription) return;
-  const values = subscription || { id: '', active: true, category: CATEGORIES[0], nextPayment: todayISO(), interval: 'monthly', cancellation: 'none' };
+  const values = subscription || { id: '', active: true, category: categories[0]?.name || '', nextPayment: todayISO(), interval: 'monthly', cancellation: 'none' };
   for (const element of form.elements) {
     if (!element.name) continue;
     if (element.type === 'checkbox') element.checked = Boolean(values[element.name]);
@@ -239,7 +317,8 @@ $('#confirm-action').addEventListener('click', () => {
   confirmCallback = null;
   callback?.();
 });
-$('#confirm-dialog').addEventListener('close', () => { confirmCallback = null; });
+// A close event is queued, so it can arrive after this dialog was reopened. Only clear on a real close.
+$('#confirm-dialog').addEventListener('close', () => { if (!$('#confirm-dialog').open) confirmCallback = null; });
 
 $('#subscription-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -248,7 +327,7 @@ $('#subscription-form').addEventListener('submit', event => {
   const existing = subscriptions.find(s => s.id === values.id);
   const entry = { ...values, id: existing?.id || `sub-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`, active: form.elements.active.checked, amount: values.amount === '' ? null : Number(values.amount), createdAt: existing?.createdAt || new Date().toISOString() };
   try {
-    const validated = validateSubscriptions([entry])[0];
+    const validated = validateSubscriptions([entry], categories)[0];
     const updated = existing ? subscriptions.map(s => s.id === existing.id ? validated : s) : [...subscriptions, validated];
     if (updated.length > 5000) throw new Error('Your workspace can hold up to 5,000 subscriptions.');
     subscriptions = updated;
@@ -276,7 +355,7 @@ $('#delete-button').addEventListener('click', () => {
 });
 
 function downloadBackup() {
-  const data = recoveryData ?? createBackup(subscriptions);
+  const data = recoveryData ?? createBackup(subscriptions, categories);
   const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -294,15 +373,17 @@ $('#import-file').addEventListener('change', async event => {
   if (!file) return;
   try {
     if (file.size > 10 * 1024 * 1024) throw new Error('Choose a JSON backup smaller than 10 MB.');
-    const imported = parseBackup(await file.text());
-    confirmAction('Import this backup?', `This backup contains ${imported.length} subscriptions. Importing replaces your current ${subscriptions.length} subscriptions. Export your current list first if you want to keep a copy.`, 'Replace & import', () => {
-      subscriptions = imported;
+    const imported = parseBackup(await file.text(), categories);
+    confirmAction('Import this backup?', `This backup contains ${imported.subscriptions.length} subscriptions and ${imported.categories.length} categories. Importing replaces your current workspace. Export a backup first if you want to keep a copy.`, 'Replace & import', () => {
+      subscriptions = imported.subscriptions;
+      categories = imported.categories;
       recoveryData = null;
       storageBlocked = false;
       const saved = persist();
+      updateCategoryDropdowns();
       resetFilters();
       render();
-      toast(`${imported.length} subscriptions imported${saved ? '.' : ' for this session. Export to keep them.'}`);
+      toast(`${imported.subscriptions.length} subscriptions imported${saved ? '.' : ' for this session. Export to keep them.'}`);
     });
   } catch (error) { toast(error.message); }
 });
@@ -312,9 +393,182 @@ function resetFilters() {
   $('#search').value = ''; $('#category-filter').value = 'all';
   renderRows();
 }
-const categoryOptions = CATEGORIES.map(category => `<option>${escapeHTML(category)}</option>`).join('');
-$('#category-filter').insertAdjacentHTML('beforeend', categoryOptions);
-$('#form-category').innerHTML = categoryOptions;
+
+// Categories Management
+$('#category-settings-list').addEventListener('input', event => {
+  const picker = event.target.closest('.category-color-picker');
+  if (!picker) return;
+  const cat = categories.find(c => c.id === picker.dataset.catId);
+  if (!cat) return;
+  cat.color = picker.value;
+  const swatch = picker.parentElement.querySelector('.color-swatch-preview');
+  if (swatch) swatch.style.background = picker.value;
+  persist();
+  renderRows();
+  renderInsights();
+});
+
+$('#category-settings-list').addEventListener('change', event => {
+  const nameInput = event.target.closest('.category-name-edit');
+  if (!nameInput) return;
+  const cat = categories.find(c => c.id === nameInput.dataset.catId);
+  if (!cat) return;
+  const newName = nameInput.value.trim();
+  if (!newName) {
+    toast('Category name cannot be empty.');
+    nameInput.value = cat.name;
+    return;
+  }
+  const duplicate = categories.find(c => c.id !== cat.id && c.name.toLowerCase() === newName.toLowerCase());
+  if (duplicate) {
+    toast(`A category named "${newName}" already exists.`);
+    nameInput.value = cat.name;
+    return;
+  }
+  const oldName = cat.name;
+  if (oldName === newName) return;
+  cat.name = newName;
+  // Update all subscriptions using this category
+  subscriptions.forEach(s => {
+    if (s.category === oldName) s.category = newName;
+  });
+  persist();
+  updateCategoryDropdowns();
+  render();
+  toast(`Category renamed to "${newName}".`);
+});
+
+$('#category-settings-list').addEventListener('click', event => {
+  const deleteBtn = event.target.closest('.delete-category-btn');
+  if (!deleteBtn) return;
+  const cat = categories.find(c => c.id === deleteBtn.dataset.catId);
+  if (!cat) return;
+  if (categories.length <= 1) {
+    toast('You must have at least one category.');
+    return;
+  }
+  const affected = subscriptions.filter(s => s.category === cat.name);
+  const replacement = categories.find(c => c.id !== cat.id);
+  if (affected.length > 0) {
+    confirmAction(
+      'Delete category?',
+      `${affected.length} subscription(s) use "${cat.name}". They will be moved to "${replacement.name}". Proceed?`,
+      'Reassign & delete',
+      () => {
+        affected.forEach(s => { s.category = replacement.name; });
+        categories = categories.filter(c => c.id !== cat.id);
+        persist();
+        updateCategoryDropdowns();
+        render();
+        toast(`"${cat.name}" deleted. Subscriptions moved to "${replacement.name}".`);
+      }
+    );
+  } else {
+    confirmAction(
+      'Delete category?',
+      `Remove category "${cat.name}"?`,
+      'Delete',
+      () => {
+        categories = categories.filter(c => c.id !== cat.id);
+        persist();
+        updateCategoryDropdowns();
+        render();
+        toast(`Category "${cat.name}" deleted.`);
+      }
+    );
+  }
+});
+
+$('#new-cat-color').addEventListener('input', e => {
+  $('#new-cat-swatch').style.background = e.target.value;
+});
+
+$('#add-category-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const nameInput = $('#new-cat-name');
+  const name = nameInput.value.trim();
+  const color = $('#new-cat-color').value;
+  if (!name) return;
+  if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+    toast(`Category "${name}" already exists.`);
+    return;
+  }
+  const newCat = {
+    id: `cat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name,
+    color
+  };
+  try {
+    categories = validateCategories([...categories, newCat]);
+    persist();
+    nameInput.value = '';
+    updateCategoryDropdowns();
+    render();
+    toast(`Category "${name}" added.`);
+  } catch (error) {
+    toast(error.message);
+  }
+});
+
+// Clear all data and start from scratch
+$('#clear-all-data-button').addEventListener('click', () => {
+  if (subscriptions.length === 0) {
+    toast('Your workspace is already empty.');
+    return;
+  }
+  confirmAction(
+    'Clear all data?',
+    `This will permanently remove all ${subscriptions.length} subscriptions from this workspace so you can start from scratch. Your custom categories will be preserved.`,
+    'Clear all data',
+    () => {
+      const previous = [...subscriptions];
+      subscriptions = [];
+      persist();
+      resetFilters();
+      render();
+      toast('Workspace cleared. You can start adding subscriptions.', {
+        label: 'Undo',
+        run: () => {
+          subscriptions = previous;
+          persist();
+          render();
+        }
+      });
+    }
+  );
+});
+
+// Reload starter examples
+async function reloadStarterData() {
+  confirmAction(
+    'Reload starter data?',
+    'This will replace your current subscriptions with the default starter subscriptions (Figma, Netflix, Proton Mail).',
+    'Reload starter data',
+    async () => {
+      try {
+        const response = await fetch('initial-data.json');
+        if (!response.ok) throw new Error('Could not read initial-data.json');
+        const text = await response.text();
+        const data = parseBackup(text, DEFAULT_CATEGORIES);
+        subscriptions = data.subscriptions;
+        categories = data.categories;
+        persist();
+        updateCategoryDropdowns();
+        resetFilters();
+        render();
+        toast('Starter subscriptions loaded.');
+      } catch (err) {
+        toast(`Error loading starter data: ${err.message}`);
+      }
+    }
+  );
+}
+$('#reload-starter-button').addEventListener('click', reloadStarterData);
+
+// Export & Import in Settings
+$('#settings-export-button').addEventListener('click', downloadBackup);
+$('#settings-import-button').addEventListener('click', () => $('#import-file').click());
+
 $('#today').textContent = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date());
 $('#search').addEventListener('input', event => { state.query = event.target.value; state.page = 1; renderRows(); });
 $('#category-filter').addEventListener('change', event => { state.category = event.target.value; state.page = 1; renderRows(); });
@@ -331,37 +585,100 @@ $('#import-button').addEventListener('click', () => $('#import-file').click());
 $('#mobile-import').addEventListener('click', () => $('#import-file').click());
 $('#sheet-info-button').addEventListener('click', () => $('#info-dialog').showModal());
 $('#about-button').addEventListener('click', () => $('#info-dialog').showModal());
+
 document.addEventListener('click', event => {
   const edit = event.target.closest('[data-edit]');
   if (edit) openEditor(edit.dataset.edit);
   const close = event.target.closest('[data-close]');
   if (close) document.getElementById(close.dataset.close).close();
 });
+
 $$('dialog').forEach(dialog => dialog.addEventListener('click', event => {
   if (event.target !== dialog) return;
   const bounds = dialog.getBoundingClientRect();
   if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
 }));
+
 document.addEventListener('keydown', event => {
-  if (event.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !document.querySelector('dialog[open]')) { event.preventDefault(); $('#search').focus(); }
+  if (event.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !document.querySelector('dialog[open]')) {
+    event.preventDefault();
+    $('#search').focus();
+  }
 });
+
 window.addEventListener('hashchange', switchView);
+
 // Keep other open tabs in sync rather than overwriting their more recent edits.
 window.addEventListener('storage', event => {
-  if (event.key !== STORAGE_KEY && event.key !== null) return;
+  if (event.key !== STORAGE_KEY && event.key !== CATEGORIES_KEY && event.key !== null) return;
   if ($('#subscription-dialog').open) $('#subscription-dialog').close();
   if ($('#confirm-dialog').open) $('#confirm-dialog').close();
   clearTimeout(toastTimer);
   $('#toast').hidden = true;
   try {
-    subscriptions = event.newValue === null ? [] : parseBackup(event.newValue);
+    const rawSubs = localStorage.getItem(STORAGE_KEY);
+    const parsed = rawSubs === null ? { subscriptions: [], categories: DEFAULT_CATEGORIES } : parseBackup(rawSubs, categories);
+    subscriptions = parsed.subscriptions;
+    categories = parsed.categories;
     recoveryData = null; storageBlocked = false; storageAvailable = true;
-    storageWarning(''); render(); toast('Workspace updated from another tab.');
+    storageWarning('');
+    updateCategoryDropdowns();
+    render();
+    toast('Workspace updated from another tab.');
   } catch {
-    recoveryData = event.newValue; storageBlocked = true;
+    recoveryData = localStorage.getItem(STORAGE_KEY);
+    storageBlocked = true;
     storageWarning('Saved data from another tab could not be read. Export the recovery data before importing a valid backup.');
     render();
   }
 });
+
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
-switchView();
+
+// Initialization: check local storage or load startup data from import file
+async function initializeApp() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved === null) {
+      // First launch in a new or cleared browser: load from initial-data.json
+      try {
+        const response = await fetch('initial-data.json');
+        if (response.ok) {
+          const text = await response.text();
+          const parsed = parseBackup(text, DEFAULT_CATEGORIES);
+          subscriptions = parsed.subscriptions;
+          categories = parsed.categories;
+          persist();
+        } else {
+          throw new Error('initial-data.json not found');
+        }
+      } catch {
+        subscriptions = [];
+        categories = [...DEFAULT_CATEGORIES];
+        persist();
+      }
+    } else {
+      try {
+        const parsed = parseBackup(saved, DEFAULT_CATEGORIES);
+        subscriptions = parsed.subscriptions;
+        categories = parsed.categories;
+      } catch {
+        recoveryData = saved;
+        storageBlocked = true;
+        subscriptions = [];
+        categories = [...DEFAULT_CATEGORIES];
+        storageWarning('Your saved data could not be read. It has been preserved. Use Export to download it for recovery, then import a valid backup to continue.');
+      }
+    }
+  } catch {
+    storageAvailable = false;
+    subscriptions = [];
+    categories = [...DEFAULT_CATEGORIES];
+    storageWarning('Browser storage is unavailable. Changes will last only for this session. Export a backup to keep them.');
+  }
+
+  updateCategoryDropdowns();
+  switchView();
+}
+
+initializeApp();
